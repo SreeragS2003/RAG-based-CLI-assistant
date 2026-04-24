@@ -1,5 +1,6 @@
 from app.vector_store import VectorStore
 from pathlib import Path
+from app.rag import RAG
 
 store = VectorStore() #Initialize empty vector store
 
@@ -12,10 +13,12 @@ texts = [t.strip() for t in texts if t.strip()] #Remove leading/trailing whitesp
 
 store.add_texts(texts) #Add the texts to the vector store, which will generate embeddings and build the FAISS index
 
-query = input("Ask: ")
+#We add RAG here:
+rag = RAG(store) #Initialize the RAG system with the vector store
 
-results = store.search(query) #Search the vector store for the most similar texts to the query, which will generate an embedding for the query and use FAISS to find the closest matches
-
-print("\nTop matches:")
-for r in results:
-    print("-", r)
+while True:
+    query = input("Enter your question (or 'exit' to quit): ") #Prompt the user to enter a question
+    if query.lower() == "exit": #Check if the user wants to exit the program
+        break
+    answer = rag.answer(query) #Get the answer from the RAG system based on the user's query
+    print("Answer:", answer) #Print the answer to the console
