@@ -1,0 +1,23 @@
+python -m venv .venv
+source .venv/Scripts/activate (deactivate to exit virtual environment)
+
+pip install google-genai
+pip install python-dotenv
+
+Semantic search:
+
+[Offline phase]
+Documents → Chunk (every line is a chunk in this project) → Embedding → Store in FAISS
+
+[Online phase]
+User Query → Embedding → Similarity Search (FAISS) → Top-k relevant chunks
+
+
+
+FAISS index = in-memory vector database (vectors only) [stored inside RAM]
+
+VectorStore = wrapper that:
+    - holds FAISS index
+    - holds original texts
+    - connects both
+
