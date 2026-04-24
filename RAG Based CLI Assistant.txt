@@ -1,0 +1,24 @@
+Working on RAG based Smart CLI Assistant:
+
+Getting code from my semantic search engine repo:
+
+1. Add that repo as a remote
+git remote add old-project https://github.com/SreeragS2003/Semantic-Search-Engine.git
+
+2. Pull the code from the repo
+git pull old-project main --allow-unrelated-histories
+
+3. Push this code to new repo
+git push origin main
+
+
+Let us create requirements.txt.
+
+1. Install the required packages first -
+
+	pip install google-genai
+	pip install python-dotenv
+
+2. Add the current list of installed packages to requirements.txt file - 
+	
+	pip freeze > requirements.txt (has to be done every time new package is installed so that requirements.txt is updated)
