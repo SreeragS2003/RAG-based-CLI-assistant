@@ -7,7 +7,10 @@ class RAG:
 
     def answer(self, query):
         # 1. Retrieve relevant chunks from the in-memory vector store (which is FAISS index)
-        results = self.store.search(query, k=2)
+        results = self.store.hybrid_search(query, k=2)
+        print(f"Top {len(results)} retrieved chunks:") #Print the number of chunks retrieved from the vector store based on the query, which can help in understanding how much context is being provided to the LLM for answer generation.
+        for r in results:
+            print("Metadata:", r["source"], "Content:", r["content"][:100]) #Print the source metadata and the first 100 characters of the content for each retrieved chunk, which can help in debugging and understanding what information is being fed into the LLM for generating the answer.
 
         # Extract content
         context = "\n".join([r["content"] for r in results])

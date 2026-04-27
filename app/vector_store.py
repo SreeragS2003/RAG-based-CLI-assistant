@@ -3,6 +3,7 @@ import numpy as np
 import json
 import os
 from app.embeddings import get_embedding
+from app.rerank import rerank
 
 class VectorStore:
     def __init__(self):
@@ -42,8 +43,13 @@ class VectorStore:
         self.index = faiss.IndexFlatL2(dim) # Create a FAISS index for L2 distance, flat means brute-force search, suitable for small datasets
         self.index.add(self.vectors)
 
-    def search(self, query, k=2):
-        query_vec = np.array([get_embedding(query)]).astype("float32") # Get the embedding for the query and convert to numpy array
-        _, indices = self.index.search(query_vec, k) # Search the index for the k nearest neighbors of the query vector
+    def hybrid_search(self, query, k=3):
+        query_vec = np.array([get_embedding(query)]).astype("float32")
+        distances, indices = self.index.search(query_vec, 10) #_ is the array of distances, indices is the array of indices of the nearest neighbors in the FAISS index. We retrieve the top 10 candidates based on semantic similarity to have a larger pool for re-ranking with keyword scores.
 
-        return [self.texts[i] for i in indices[0]]
+        candidates = [self.texts[i] for i in indices[0]]
+        dists = distances[0]
+        print(f"Distances of top 10 candidates: {dists}") #Print the distances of the top 10 candidates retrieved from the FAISS index, which can help in understanding how semantically similar they are to the query before re-ranking.
+
+        # Re-rank candidates based on a combination of semantic similarity (distance) and keyword overlap with the query
+        return rerank(query, candidates, dists)[:k] #Return the top k results after re-ranking, which will be used as context for the LLM to generate an answer.

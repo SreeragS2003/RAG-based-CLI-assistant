@@ -27,3 +27,11 @@ Let us create requirements.txt.
 For reading pdf documents and chunking,
 
 Do : pip install pypdf
+
+
+
+Improving retrieval:
+
+1. Semantic search (FAISS)
+2. Keyword search (BM25-style)
+3. Combine + rerank
