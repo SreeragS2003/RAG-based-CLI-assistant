@@ -31,13 +31,10 @@ class VectorStore:
 
         return True
 
-    def add_texts(self, texts, source = "unknown"):
+    def add_texts(self, texts, metadata):
         embeddings = [get_embedding(t) for t in texts] #Get vector embeddings for each text in the input list
 
-        self.texts = [
-            {"content": t, "source": source, "id": i}
-            for i, t in enumerate(texts)
-        ] #Metadata for each text chunk, including the original content, the source (which can be useful for tracing back where the information came from), and a unique ID for each chunk (which can be used for retrieval and reference later on)
+        self.texts = metadata #Metadata for each text chunk, including the original content, the source (which can be useful for tracing back where the information came from), and a unique ID for each chunk (which can be used for retrieval and reference later on)
 
         self.vectors = np.array(embeddings).astype("float32") # Convert to numpy array and ensure it's float32 for faiss
 
@@ -49,4 +46,4 @@ class VectorStore:
         query_vec = np.array([get_embedding(query)]).astype("float32") # Get the embedding for the query and convert to numpy array
         _, indices = self.index.search(query_vec, k) # Search the index for the k nearest neighbors of the query vector
 
-        return [self.texts[i]["content"] for i in indices[0]]
+        return [self.texts[i] for i in indices[0]]
