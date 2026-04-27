@@ -2,50 +2,88 @@ from app.llm import ask_llm
 from app.tools import TOOLS
 import json
 AGENT_PROMPT = """
-You are an intelligent assistant with access to tools.
+You are an intelligent agent.
 
-Tools:
-- search_docs: use for questions about documents
-- calculator: use for math
+You can:
+- search_docs
+- calculator
 
-Rules:
-- Decide which tool to use
-- Respond in JSON:
+You must follow this format:
 
-{
-  "action": "tool_name" or "final",
-  "input": "...",
-  "answer": "..."
-}
-"""
-def run_agent(query, store):
-    prompt = AGENT_PROMPT + f"\nUser: {query}"
+Thought: what you are thinking
+Action: tool name OR "final"
+Input: input to tool
 
-    response = ask_llm(prompt)
-    
-    data = json.loads(response)
+When you have the final answer:
+Action: final
+Answer: ...
 
-    if data["action"] == "final":
-        return data["answer"]
-
-    tool_name = data["action"]
-    tool_input = data["input"]
-
-    tool_fn = TOOLS[tool_name]["function"]
-
-    # execute tool
-    if tool_name == "search_docs":
-        result = tool_fn(tool_input, store)
-    else:
-        result = tool_fn(tool_input)
-
-    # feed result back to LLM
-    follow_up = f"""
-Tool result:
-{result}
-
-Now give final answer.
+Be concise and logical.
 """
 
-    final = ask_llm(follow_up)
-    return final
+MAX_STEPS = 5
+
+def run_agent(query, store, memory=None):
+    if memory is None:
+        memory = []
+    history = "\n".join(memory)
+
+    for step in range(MAX_STEPS):
+        prompt = f"""
+            {AGENT_PROMPT}
+
+            Previous steps:
+            {history}
+
+            User: {query}
+        """
+
+        response = ask_llm(prompt)
+
+        # simple parsing
+        lines = response.split("\n")
+
+        action = None
+        action_input = ""
+        answer = ""
+
+        for line in lines:
+            line = line.strip()
+            print(f"Parsing line: {line}") #Debugging statement to show each line being parsed, which can help identify any formatting issues in the LLM's response that might be causing problems with extracting the action and input correctly.
+            if line.startswith("Action:"):
+                action = line.replace("Action:", "").strip()
+            elif line.startswith("Input:"):
+                action_input = line.replace("Input:", "").strip()
+            elif line.startswith("Answer:"):
+                answer = line.replace("Answer:", "").strip()
+        
+        # If final answer
+        if action == "final":
+            memory.append(f"User: {query}")
+            memory.append(f"Agent: {answer}")
+            return answer
+
+        if action not in TOOLS:
+            observation = f"Error: Unknown tool '{action}'"
+            
+            history += f"""
+                {response}
+                Observation: {observation}
+            """
+            continue  # let LLM try again
+
+        # Execute tool
+        tool_fn = TOOLS[action]["function"]
+
+        if action == "search_docs": #Decide which tool to use based on llm response.
+            result = tool_fn(action_input, store)
+        else:
+            result = tool_fn(action_input)
+
+        # Append observation to history (for memory)
+        history += f"""
+        {response}
+        Observation: {result}
+        """
+
+    return "Max steps reached. Could not complete."

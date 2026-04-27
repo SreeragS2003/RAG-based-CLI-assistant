@@ -46,3 +46,114 @@ Online:
 Query → embedding → FAISS → candidates
        → rerank → top chunks as context
        → query + context to LLM → answer
+
+
+After including agentic AI,
+
+LLM is called repeatedly
+Each time with:
+    same question
+    + more context
+    + more observations
+
+Each call to the llm includes:
+
+- instructions (AGENT_PROMPT)
+- full reasoning trace (history)
+- original query
+
+
+Prompt flow:
+
+CALL 1 — INITIAL DECISION
+Prompt sent to LLM:
+You are an intelligent agent...
+
+Previous steps:
+
+
+User: What is neural networks and calculate 25 * 17?
+LLM response:
+Thought: I need info and a calculation
+Action: search_docs
+Input: neural networks
+
+Key point
+
+First call = planning step
+
+CALL 2 — AFTER FIRST TOOL
+
+Now history is updated:
+
+Thought: I need info and a calculation
+Action: search_docs
+Input: neural networks
+
+Observation: (context from RAG)
+Prompt becomes:
+You are an intelligent agent...
+
+Previous steps:
+Thought: I need info and a calculation
+Action: search_docs
+Input: neural networks
+
+Observation: Neural networks are...
+
+User: What is neural networks and calculate 25 * 17?
+LLM response:
+Thought: Now I should calculate
+Action: calculator
+Input: 25 * 17
+
+Key point
+
+Second call = refined decision using tool output
+
+CALL 3 — AFTER SECOND TOOL
+
+History now:
+
+Thought: ...
+Action: search_docs
+Observation: ...
+
+Thought: ...
+Action: calculator
+Observation: 425
+Prompt:
+You are an intelligent agent...
+
+Previous steps:
+...full history...
+
+User: What is neural networks and calculate 25 * 17?
+LLM response:
+Thought: I now have everything
+Action: final
+Answer: Neural networks are... Also 25 * 17 = 425
+
+Key point
+
+Final call = answer generation
+
+Summary of calls
+Call	Purpose
+1	decide first action
+2	refine after tool
+3	final answer
+
+What actually changes between prompts?
+
+Only this part grows:
+
+Previous steps:
+Evolution:
+Step 1:
+(empty)
+Step 2:
+search_docs + result
+Step 3:
+search_docs + result
+calculator + result
