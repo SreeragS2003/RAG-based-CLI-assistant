@@ -35,3 +35,14 @@ Improving retrieval:
 1. Semantic search (FAISS)
 2. Keyword search (BM25-style)
 3. Combine + rerank
+
+
+Full pipeline summary after reranking added:
+
+Offline:
+PDF → chunks → embeddings → FAISS → saved
+
+Online:
+Query → embedding → FAISS → candidates
+       → rerank → top chunks as context
+       → query + context to LLM → answer

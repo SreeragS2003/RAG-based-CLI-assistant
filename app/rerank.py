@@ -6,7 +6,7 @@ def rerank(query, candidates, distances):
     for c, dist in zip(candidates, distances):
         text = c["content"].lower()
 
-        # 1. Semantic score (convert distance → similarity)
+        # 1. Semantic score (convert distance to similarity)
         sem_score = 1 / (1 + dist)
 
         # 2. Keyword score

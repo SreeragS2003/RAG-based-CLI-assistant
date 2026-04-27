@@ -1,8 +1,5 @@
 from app.vector_store import VectorStore
-from pathlib import Path
 from app.rag import RAG
-from app.loader import load_pdf
-from app.chunker import chunk_text
 from app.multi_pdf_loader import load_all_pdfs
 
 store = VectorStore() #Initialize empty vector store

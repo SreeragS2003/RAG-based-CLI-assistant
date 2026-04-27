@@ -49,7 +49,6 @@ class VectorStore:
 
         candidates = [self.texts[i] for i in indices[0]]
         dists = distances[0]
-        print(f"Distances of top 10 candidates: {dists}") #Print the distances of the top 10 candidates retrieved from the FAISS index, which can help in understanding how semantically similar they are to the query before re-ranking.
 
         # Re-rank candidates based on a combination of semantic similarity (distance) and keyword overlap with the query
         return rerank(query, candidates, dists)[:k] #Return the top k results after re-ranking, which will be used as context for the LLM to generate an answer.
