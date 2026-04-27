@@ -22,3 +22,8 @@ Let us create requirements.txt.
 2. Add the current list of installed packages to requirements.txt file - 
 	
 	pip freeze > requirements.txt (has to be done every time new package is installed so that requirements.txt is updated)
+
+
+For reading pdf documents and chunking,
+
+Do : pip install pypdf
