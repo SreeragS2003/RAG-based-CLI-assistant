@@ -1,0 +1,57 @@
+Productionizing RAG based AI Agent:
+
+1. Install FastAPI and uvicorn
+
+	pip install fastapi uvicorn
+
+UVICORN is an ASGI (Asynchronous Server Gateway Interface) web server implementation tailored for Python.
+FastAPI is a modern, high-performance, and robust Python web framework used for building REST APIs.
+
+2. Create api.py which uses FastAPI and pydantic BaseModel
+
+3. Create memory store class to store long term agent memory
+
+history = reasoning scratchpad (temporary)
+memory = only final answers (persistent)
+
+4. Run the uvicorn server
+
+	uvicorn app.api:app --reload #app.api is the module path and app is the fastapi instance variable name
+
+5. Server will be listening on http://127.0.0.1:8000
+	Visit http://127.0.0.1:8000/docs to see the FastAPI OpenAPI docs
+
+6. A sample query to test in OpenAPI docs
+	
+	curl -X 'POST' \
+  'http://127.0.0.1:8000/chat' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "query": "What is Amazon Aurora and how is data stored in it?"
+}'
+
+7. Make Vector DB storage (FAISS index) persistent, if not already
+
+8. Make the llm stream the final output (User sees the final answer being generated live) - used yield inside run_agent function for now
+
+9. Structured Tool Calling - Replaced fragile string parsing with strict JSON outputs for reliable and predictable agent decisions.
+
+10. Implemented per-user memory with controlled history size to maintain context across conversations.
+
+11. Wrapped LLM calls, parsing, and tool execution with retries and safeguards to prevent crashes.
+
+12. Clean architecture - refactored into modular components with proper lifecycle handling
+
+Curl quick test:
+
+curl -N -X POST http://127.0.0.1:8000/chat \
+-H "Content-Type: application/json" \
+-d "{\"query\": \"What is Amazon Aurora and calculate 5*3?\", \"user_id\": \"test\"}"
+Amazon Aurora is a cloud-native relational database that is managed and distributed. It is compatible with MySQL and PostgreSQL. It uses a relational data model and supports SQL, MySQL and PostgreSQL extensions, JDBC and ODBC APIs, and AWS SDKs. Aurora scales compute up to 128 TB of storage with up to 15 read replicas and storage automatically grows in 10 GB increments. It offers strong consistency for reads and writes and is ACID compliant. The calculation of 5*3 is 15.
+
+
+13. Basic React UI frontend developed, then added cors middleware in api.py backend
+
+14. FastAPI endpoint made async, Added rag cache (Context and sources added in in-memory cache)
+

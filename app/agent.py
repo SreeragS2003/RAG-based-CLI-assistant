@@ -1,5 +1,8 @@
+from utils.safe_llm import safe_llm_call
 from app.llm import ask_llm
-from app.tools import TOOLS
+from app.tools import TOOLS, execute_tool
+from utils.json_parse_helper import parse_json
+from utils.logger import logger
 AGENT_PROMPT = """
 You are an intelligent agent.
 
@@ -12,79 +15,87 @@ Rules:
 - If you already have enough information, STOP and return final answer
 - Do NOT call tools repeatedly for the same query
 
+STRICT RULES:
+- Always respond in valid JSON
+- Do NOT include any extra text
+- Do NOT include markdown
+
 Format:
-
-Thought: ...
-Action: tool name OR "final"
-Input: ...
-
-When done:
-Action: final
-Answer: ...
+{
+  "action": "tool_name OR final",
+  "input": "input for the tool",
+  "answer": "final answer (only if action is final)"
+}
 """
+def build_prompt(query, history):
+    return f"""
+    {AGENT_PROMPT}
+
+    Previous steps:
+    {history}
+
+    User: {query}
+    """
 
 MAX_STEPS = 5
 
-def run_agent(query, store, memory=None):
-    if memory is None:
-        memory = []
-    history = "\n".join(memory)
+async def run_agent(query, store, memory=None):
+    if memory is None: #fallback to in-memory memory if no memory instance is provided (for backward compatibility and testing)
+        from app.memory_store import Memory
+        memory = Memory()
+
+    history = memory.get()
 
     for step in range(MAX_STEPS):
-        prompt = f"""
-            {AGENT_PROMPT}
+        prompt = build_prompt(query, history) #Construct the prompt for the LLM by combining the agent prompt, the history of previous interactions (which includes the user's query and the assistant's responses), and the current user query. This prompt provides the LLM with all the necessary context to determine the next action to take.
 
-            Previous steps:
-            {history}
+        response = await safe_llm_call(lambda: ask_llm(prompt)) #Call the LLM with the constructed prompt, wrapped in the safe_llm_call function to handle retries and transient errors.
 
-            User: {query}
-        """
+        if not response.strip():
+            history += "\nEmpty LLM response"
+            continue
 
-        response = ask_llm(prompt)
+        try:
+            data = parse_json(response) #Parse the LLM response as JSON, which should contain the action, input, and answer (if final). If the response is not valid JSON, we catch the exception and append an error message to the history, allowing the LLM to try again with a clearer prompt.
+        except Exception:
+            # handle invalid JSON
+            history += f"\nInvalid JSON response: {response}"
+            continue
 
-        # simple parsing
-        lines = response.split("\n")
+        action = (data.get("action") or "").strip().lower() #Extract the action from the parsed JSON, ensuring it's a string and normalizing it to lowercase for consistent processing. If the action is missing or not a string, we default to an empty string to avoid errors in subsequent checks.
+        action_input = data.get("input", "")
+        answer = data.get("answer", "")
 
-        action = None
-        action_input = ""
-        answer = ""
+        logger.info(f"[STEP {step}] Action: {action} -> Action Input : {action_input}")
 
-        for line in lines:
-            line = line.strip()
-            if line.startswith("Action:"):
-                action = line.replace("Action:", "").strip()
-            elif line.startswith("Input:"):
-                action_input = line.replace("Input:", "").strip()
-            elif line.startswith("Answer:"):
-                answer = line.replace("Answer:", "").strip()
-        
         # If final answer
         if action == "final":
-            memory.append(f"User: {query}")
-            memory.append(f"Agent: {answer}")
-            return answer
+            memory.add(query, answer) #Add the query and final answer to memory for future context
+            for word in answer.split():
+                yield word + " " #Word level streaming of the final answer back to the client, allowing for a more responsive user experience where the client can start receiving parts of the answer immediately rather than waiting for the entire response to be generated before sending it back.
+            #Since yield is used, run_agent function (it is a generator function now) will pause here and return control to the caller, allowing it to process the answer as it is generated. Once the entire answer has been yielded, the function will exit.
+            return
 
-        if action not in TOOLS:
+        if action != "final" and action not in TOOLS:
             observation = f"Error: Unknown tool '{action}'"
-            
+
             history += f"""
-                {response}
-                Observation: {observation}
+            LLM Output: {response}
+            Observation: {observation}
             """
-            continue  # let LLM try again
+            continue #Let LLM try again
+
+        if not action_input:
+            history += "\nMissing input"
+            continue
 
         # Execute tool
-        tool_fn = TOOLS[action]["function"]
-
-        if action == "search_docs": #Decide which tool to use based on llm response.
-            result = tool_fn(action_input, store)
-        else:
-            result = tool_fn(action_input)
+        result = execute_tool(action, action_input, store)
 
         # Append observation to history (for memory)
         history += f"""
-        {response}
+        LLM Output: {response}
         Observation: {result}
         """
 
-    return "Max steps reached. Could not complete."
+    yield "Max steps reached. Could not complete."

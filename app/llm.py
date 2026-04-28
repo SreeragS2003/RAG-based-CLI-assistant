@@ -15,9 +15,9 @@ Rules:
 - Be concise
 """
 
-def ask_llm(prompt):
-    response = client.models.generate_content(
-        model="gemini-2.5-flash-lite",
+async def ask_llm(prompt):
+    response = await client.aio.models.generate_content(
+        model="gemini-2.0-flash-lite",
         contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
         config={
             "temperature": 0.3
@@ -25,3 +25,16 @@ def ask_llm(prompt):
     )
 
     return response.text
+
+async def ask_llm_stream(prompt): #Not used right now
+    response = await client.aio.models.generate_content_stream(
+        model="gemini-2.5-flash-lite",
+        contents=f"{SYSTEM_PROMPT}\n\n{prompt}",
+        config={
+            "temperature": 0.3
+        }
+    )
+
+    async for chunk in response:
+        if chunk.text:
+            yield chunk.text

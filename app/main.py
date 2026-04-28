@@ -22,4 +22,7 @@ while True:
     if query.lower() == "exit": #Check if the user wants to exit the program
         break
     result = run_agent(query, store)
-    print("\nAnswer:", result)
+    print("Answer:", end=" ", flush=True) #Print "Answer:" without a newline and flush the output buffer to ensure it appears immediately
+    for chunk in result:
+        print(chunk, end="", flush=True)
+    print()
