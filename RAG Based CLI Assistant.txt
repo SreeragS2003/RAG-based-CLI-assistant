@@ -62,6 +62,25 @@ Each call to the llm includes:
 - full reasoning trace (history)
 - original query
 
+A sample query and the outputs generated:
+What is Amazon Aurora and calculate 30*50
+Parsing line: Thought: The user is asking two questions. First, "What is Amazon Aurora?". Second, "calculate 30*50". I should first search for information about Amazon Aurora and then use the calculator for the multiplication.
+Parsing line: Action: search_docs
+Parsing line: Input: What is Amazon Aurora?
+Parsing line: Previous steps:
+Parsing line: Action: search_docs
+Parsing line: Input: What is Amazon Aurora?
+Parsing line: Action: calculator
+Parsing line: Input: 30*50
+Parsing line: Previous steps:
+Parsing line: Action: search_docs
+Parsing line: Input: What is Amazon Aurora?
+Parsing line: Action: calculator
+Parsing line: Input: 30*50
+Parsing line: Action: final
+Parsing line: Answer: Amazon Aurora is a fully managed relational database engine that is compatible with MySQL and PostgreSQL. It is designed for high performance and availability. 30 * 50 = 1500.
+
+Answer: Amazon Aurora is a fully managed relational database engine that is compatible with MySQL and PostgreSQL. It is designed for high performance and availability. 30 * 50 = 1500.
 
 Prompt flow:
 

@@ -1,0 +1,75 @@
+Offline phase:
+
+1 - main.py:
+
+Initialize empty vector store -> this will have the metadata (context chunks, source and chunk id) for 
+later retrieval, vector embeddings (temporary storage until FAISS index data structure is built in RAM), 
+and the FAISS index for efficient similarity search
+
+2 - multi_pdf_loader.py
+
+def load_all_pdfs -> this searches the /app/data folder
+for files ending with .pdf -> load_pdf (loader.py) is used
+to read all the lines in the pdf into a string using pypdf -> chunk_text (chunker.py) is used to create
+chunks of a defined size and overlap from this string of lines -> two arrays all_chunks and metadata ->
+all_chunks will store all the chunks obtained from all the pdf files, metadata will have items where each 
+item contains the chunk, its source, and chunk id (start from 0 per file)
+
+3 - vector_store.py
+
+all_chunks and metadata from the prev step -> given to add_texts function -> get_embedding function (embeddings.py)
+uses gemini embedding model to generate vector embeddings for all the chunks -> vector store instance stores metadata
+in self.texts, numpy array of all vector embeddings in self.vectors, and self.vectors is copied to self.index (which is
+FAISS index of dimension self.vectors.shape[1]). Now self.vectors is not actually needed anymore. ->
+store.save() called -> saves the self.index (FAISS index) in index.faiss file and metadata in metadata.json file (both under
+storage folder)
+
+Online phase:
+
+1 - main.py:
+
+Empty vector store initialized -> store.load (vector_store.py) called -> checks if index.faiss and metadata.json exists
+-> If they exist, copy them to self.index and self.texts respectively
+
+While true loop enters -> user asks query -> run_agent (agent.py) called
+
+2 - agent.py:
+
+memory = [], history joins the memory elements (user query and llm answer) as a string, but it will have observation for each past responses as well (after one agent run (5 max steps), 
+it gets wiped out)  -> enter for loop which executes a maximum of 5 times ->
+prompt for llm constructed from AGENT_PROMPT, history (previous steps) and user query -> ask_llm (llm.py) called to get response
+-> it uses gemini llm to answer the constructed prompt -> response is a big string which is then split by newline character -> 
+for each line in the response string, Action (either the tool name or "final" if finished), Action input (input given to the tool),
+Answer (Line starting with Answer: will only be there when llm arrives at final answer) are extracted from the response string -> If action is final,
+then append user query and the agent answer to memory and return the answer -> if action not in the tools listed, add this observation and the llm response
+to history -> if action is a valid tool, then execute the tool -> if action is search_docs, execute search_docs; if action is calculator, execute calculator
+-> suppose action is search_docs -> tools.py
+
+3 - tools.py:
+
+search_docs() called -> RAG initialized with the vector store -> rag.search called
+
+4 - rag.py
+
+rag.search() -> Calls hybrid_search function of vector store instance
+
+5 - vector_store.py
+
+hybrid_search() -> user query converted to vector embeddings -> figure out the distances and indices of the 10 nearest neighbors of this query vector in the
+FAISS index -> obtain the possible candidates from self.texts (metadata) -> then re-rank the 10 candidates based on a weighted combination of semantic similarity 
+and keyword matching -> Top k candidates (out of 10) after re-ranking returned
+
+6 - rag.py
+
+Top k candidates (metadata information) -> extract the chunk content into "context",
+extract the corresponding sources into "sources" -> return "context" and "sources"
+
+7 - agent.py
+This "context" and "sources" combined together as "result" added to history -> That history is added to the llm prompt as "Previous steps" in the next iteration of agent -> 
+this provides context to the llm for better response -> After some iterations, llm arrives at a response which has "Answer:" and it marks the "Action:" as final -> This final answer
+is displayed to the user.
+
+
+
+
+

@@ -1,6 +1,5 @@
 from app.llm import ask_llm
 from app.tools import TOOLS
-import json
 AGENT_PROMPT = """
 You are an intelligent agent.
 
@@ -8,17 +7,20 @@ You can:
 - search_docs
 - calculator
 
-You must follow this format:
+Rules:
+- Use tools only if needed
+- If you already have enough information, STOP and return final answer
+- Do NOT call tools repeatedly for the same query
 
-Thought: what you are thinking
+Format:
+
+Thought: ...
 Action: tool name OR "final"
-Input: input to tool
+Input: ...
 
-When you have the final answer:
+When done:
 Action: final
 Answer: ...
-
-Be concise and logical.
 """
 
 MAX_STEPS = 5
@@ -49,7 +51,6 @@ def run_agent(query, store, memory=None):
 
         for line in lines:
             line = line.strip()
-            print(f"Parsing line: {line}") #Debugging statement to show each line being parsed, which can help identify any formatting issues in the LLM's response that might be causing problems with extracting the action and input correctly.
             if line.startswith("Action:"):
                 action = line.replace("Action:", "").strip()
             elif line.startswith("Input:"):
