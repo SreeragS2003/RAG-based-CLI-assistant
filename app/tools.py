@@ -1,9 +1,10 @@
 from app.rag import RAG
 import math
+import inspect
 
-def search_docs(query, store):
+async def search_docs(query, store):
     rag = RAG(store) #Initialize RAG with the vector store
-    return rag.search(query)
+    return await rag.search(query)
 
 def calculator(expr: str):
     try:
@@ -18,25 +19,31 @@ def calculator(expr: str):
     except Exception as e:
         return f"Error: {str(e)}"
 
-def execute_tool(action, action_input, store=None):
+async def execute_tool(action, action_input, store=None):
     # Execute tool
-        tool_fn = TOOLS[action]["function"]
+    tool = TOOLS[action]
+    tool_fn = tool["function"]
 
-        try:
-            if action == "search_docs": #Decide which tool to use based on llm response
-                return tool_fn(action_input, store)
-            return tool_fn(action_input)
-        except Exception as e:
-            return f"Tool error: {str(e)}"
+    try:
+        args = (action_input, store) if tool.get("needs_store") else (action_input,)
+
+        if inspect.iscoroutinefunction(tool_fn):
+            return await tool_fn(*args)
+        else:
+            return tool_fn(*args)
+    except Exception as e:
+        return f"Tool error: {str(e)}"
 
 
 TOOLS = {
     "search_docs": {
         "description": "Search internal documents for information",
-        "function": search_docs
+        "function": search_docs,
+        "needs_store" : True #Indicates that this tool needs access to the vector store, which will be passed in when executing the tool. This allows us to manage dependencies and ensure that the necessary resources are available when the tool is called.
     },
     "calculator": {
         "description": "Perform mathematical calculations",
-        "function": calculator
+        "function": calculator,
+        "needs_store" : False #Indicates that this tool does not need access to the vector store, so we won't pass it in when executing the tool. This allows us to manage dependencies and ensure that we only provide the necessary resources to each tool based on its requirements.
     }
 }

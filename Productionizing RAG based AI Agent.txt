@@ -53,5 +53,50 @@ Amazon Aurora is a cloud-native relational database that is managed and distribu
 
 13. Basic React UI frontend developed, then added cors middleware in api.py backend
 
-14. FastAPI endpoint made async, Added rag cache (Context and sources added in in-memory cache)
+14. FastAPI endpoint made async, agent running function and its wrapper made async, async llm calls and added rag cache (Context and sources added in in-memory cache)
 
+15. Added groq llm provider with httpx verify=False, Also Gemini is present as a fallback llm provider
+
+16. Instead of single query, multiple variations of the same query are generated and hybrid search is performed using each of them in parallel fashion. asyncio.to_thread and asyncio.gather are being used.
+
+17. cachetools for fast, volatile cache; diskcache for persistent disk cache storage (like Redis)
+
+18. The big idea
+Before, you were building a single growing string as history. Now you're building a list of messages where each message has a role (system, user, assistant). This is how chat models actually expect to receive conversation history.
+
+Tool parallelism - TODO (later)
+Instead of redis, we use diskcache now
+
+Once you finish the above, THEN:
+
+🧠 External tools (your next phase)
+🔹 LangChain
+abstraction over your agent
+chains, tools, memory
+
+👉 You’ll understand what it’s hiding
+
+🔹 LangGraph
+replaces your agent loop
+graph-based execution
+
+👉 maps directly to what you built manually
+
+🔹 n8n
+visual workflows
+trigger-based automation
+
+👉 useful when integrating:
+
+APIs
+cron jobs
+pipelines
+🔹 LlamaIndex
+focuses on RAG pipelines
+better document handling
+🧭 Recommended order (don’t skip this)
+1. Async basics
+2. Caching (local → Redis)
+3. Parallel execution
+4. Then → LangChain / LangGraph
+5. Then → n8n (automation layer)
