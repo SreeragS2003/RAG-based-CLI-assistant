@@ -1,12 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field #For request body validation
 from contextlib import asynccontextmanager
-from app.agent import run_agent
 from app.vector_store import VectorStore
 from app.memory_store import Memory
 from app.multi_pdf_loader import load_all_pdfs
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from app.agent import initialize_agent
+from app.tools import create_search_tool, calculator
+from app.strip_markdown import strip_markdown
 
 store = None #Global variable to hold the vector store instance, which will be initialized in the lifespan function to ensure it is ready before handling any requests.
 memory_store = {} #In-memory store for user conversations, mapping user_id to their respective Memory instance
@@ -30,6 +32,16 @@ async def lifespan(app: FastAPI): #Lifespan handler to manage startup and shutdo
         store.save()
 
         print("Index built and saved successfully")
+     # Create tools AFTER store
+    search_tool = create_search_tool(store)
+    tools = [search_tool, calculator]
+
+    # Create agent AFTER tools
+    agent = initialize_agent(tools)
+
+    # Store in app.state
+    app.state.store = store #Not utilized right now
+    app.state.agent = agent
     yield #App runs here
 
     print("Shutting down...") #Cleanup code can go here if needed
@@ -42,13 +54,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 @app.post("/chat")
-async def chat(q: Query):
+async def chat(q: Query, request: Request):
     try:
+        agent = request.app.state.agent
+
         if q.user_id not in memory_store:
-            memory_store[q.user_id] = Memory() #Separate memory for each user based on user_id, allowing the assistant to maintain context across multiple interactions with the same user while keeping different users' conversations isolated from each other.
+            memory_store[q.user_id] = Memory()
 
         user_memory = memory_store[q.user_id]
-        return StreamingResponse(run_agent(q.query, store, user_memory), media_type="text/plain")
+
+        history = user_memory.get()
+
+        # Build query with history as context, not as system message
+        query_with_context = q.query
+        if history:
+            query_with_context = f"Previous context:\n{history}\n\nCurrent question: {q.query}"
+
+        result = await agent.ainvoke({
+            "messages": [{"role": "user", "content": query_with_context}]
+        })  # use ainvoke, not invoke
+
+        answer = strip_markdown(result["messages"][-1].content)
+
+        user_memory.add(q.query, answer)
+
+        async def generator():
+            for word in answer.split():
+                yield word + " "
+
+        return StreamingResponse(generator(), media_type="text/plain")
     except Exception as e:
-        return {"error": str(e)}
+        import traceback
+        traceback.print_exc()
+        return {"error": repr(e)} #For showing hidden exceptions

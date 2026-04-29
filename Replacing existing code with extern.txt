@@ -1,0 +1,24 @@
+Replacing existing code with external tools:
+
+1) Langchain
+
+	pip install langchain langchain-core langchain-community
+
+LangChain tools must be:
+- single input (or structured schema)
+- self-contained
+- return string
+
+Change tools.py to have @tool decorator
+Each tool can only have a single input, and async tools may work weird, so better keep sync ones
+
+There is no need for execute_tool() custom function, and tools description object
+
+Your code	LangChain equivalent
+run_agent loop	AgentExecutor
+TOOLS dict	Tool objects
+parsing JSON	handled internally
+prompt building	PromptTemplate
+
+
+Do pip install langchain-groq
