@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.agent import initialize_agent
 from app.tools import create_search_tool, calculator
 from app.strip_markdown import strip_markdown
+from langchain_core.messages import HumanMessage
 
 store = None #Global variable to hold the vector store instance, which will be initialized in the lifespan function to ensure it is ready before handling any requests.
 memory_store = {} #In-memory store for user conversations, mapping user_id to their respective Memory instance
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI): #Lifespan handler to manage startup and shutdo
 
     # Create agent AFTER tools
     agent = initialize_agent(tools)
+    print("Visualizing the agent graph created",agent.get_graph().draw_ascii())
 
     # Store in app.state
     app.state.store = store #Not utilized right now
@@ -72,9 +74,9 @@ async def chat(q: Query, request: Request):
         if history:
             query_with_context = f"Previous context:\n{history}\n\nCurrent question: {q.query}"
 
-        result = await agent.ainvoke({
-            "messages": [{"role": "user", "content": query_with_context}]
-        })  # use ainvoke, not invoke
+        result = await agent.ainvoke({ #This goes to entry point of graph which is set as call_llm
+            "messages": [HumanMessage(content=query_with_context)]
+        })
 
         answer = strip_markdown(result["messages"][-1].content)
 

@@ -22,3 +22,171 @@ prompt building	PromptTemplate
 
 
 Do pip install langchain-groq
+
+Whenever new packages installed, do pip freeze > requirements.txt to update it
+
+2) LangGraph -> more control over the agent compared to LangChain's create_agent (which is actually LangGraph under the hood)
+
+LangGraph overall flow:
+
+```python
+result = await agent.ainvoke({
+    "messages": [HumanMessage(content="What is Amazon Aurora?")]
+})
+```
+
+---
+
+### Step 1 — Initial state is set
+```python
+{
+    "messages": [
+        HumanMessage(content="What is Amazon Aurora?")
+    ]
+}
+```
+This is the starting blackboard. Just one message.
+
+---
+
+### Step 2 — Entry point: `call_llm` runs
+
+State comes in, system prompt gets prepended since it's the first run:
+```python
+messages = [
+    SystemMessage(content="You are an intelligent assistant..."),
+    HumanMessage(content="What is Amazon Aurora?")
+]
+```
+This gets sent to Groq. The LLM responds with a tool call:
+```python
+AIMessage(
+    content="",
+    tool_calls=[{
+        "name": "search_docs",
+        "args": {"query": "Amazon Aurora"},
+        "id": "call_abc123"
+    }]
+)
+```
+This gets appended to state:
+```python
+{
+    "messages": [
+        HumanMessage(content="What is Amazon Aurora?"),
+        AIMessage(tool_calls=[...])   # ← appended
+    ]
+}
+```
+
+---
+
+### Step 3 — `should_continue` runs
+```python
+last_message = state["messages"][-1]  # AIMessage with tool_calls
+# tool_calls is not empty → return "tools"
+```
+Routes to the `tools` node.
+
+---
+
+### Step 4 — `tool_node` runs
+Sees `tool_calls` on the last message, executes `search_docs("Amazon Aurora")`, gets back context from your vector store. Appends a `ToolMessage`:
+```python
+{
+    "messages": [
+        HumanMessage(content="What is Amazon Aurora?"),
+        AIMessage(tool_calls=[...]),
+        ToolMessage(               # ← appended
+            content="Aurora is a cloud-native DB... Sources: aurora.pdf",
+            tool_call_id="call_abc123"
+        )
+    ]
+}
+```
+
+---
+
+### Step 5 — Back to `call_llm`
+Full history is sent to LLM again. Now it has the tool result. LLM decides it has enough info and responds with a plain answer:
+```python
+AIMessage(
+    content="Amazon Aurora is a cloud-native relational database by AWS...",
+    tool_calls=[]   # ← empty, no more tools needed
+)
+```
+Appended to state:
+```python
+{
+    "messages": [
+        HumanMessage(...),
+        AIMessage(tool_calls=[search_docs]),
+        ToolMessage(content="Aurora is..."),
+        AIMessage(content="Amazon Aurora is...")   # ← final answer
+    ]
+}
+```
+
+---
+
+### Step 6 — `should_continue` runs again
+```python
+last_message.tool_calls  # empty → return END
+```
+Graph stops.
+
+---
+
+### Step 7 — `ainvoke` returns the full state
+```python
+result = {
+    "messages": [
+        HumanMessage(...),
+        AIMessage(tool_calls=[...]),
+        ToolMessage(...),
+        AIMessage(content="Amazon Aurora is...")  # ← you grab this
+    ]
+}
+
+answer = result["messages"][-1].content  # ← always the last one
+```
+
+---
+
+### The complete picture
+
+```
+ainvoke({"messages": [HumanMessage]})
+    │
+    ▼
+State: [Human]
+    │
+    ▼
+call_llm → sends [System, Human] to Groq
+    │         gets back AIMessage(tool_calls=[search_docs])
+    ▼
+State: [Human, AI(tool_calls)]
+    │
+    ▼
+should_continue → "tools"
+    │
+    ▼
+tool_node → runs search_docs → gets result
+    │
+    ▼
+State: [Human, AI(tool_calls), ToolMessage(result)]
+    │
+    ▼
+call_llm → sends full history to Groq
+    │         gets back AIMessage(content="final answer")
+    ▼
+State: [Human, AI(tool_calls), ToolMessage, AI(final)]
+    │
+    ▼
+should_continue → END
+    │
+    ▼
+returns full state dict
+```
+
+The key insight is that **`ainvoke` is just running the graph loop for you** — entering at `call_llm`, bouncing between nodes based on edges, and returning when it hits `END`. Every node only sees the state, modifies it, and passes it on.
