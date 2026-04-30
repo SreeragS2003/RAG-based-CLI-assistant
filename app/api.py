@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI): #Lifespan handler to manage startup and shutdo
     # Store in app.state
     app.state.store = store #Not utilized right now
     app.state.agent = agent
+    app.state.search_tool = search_tool
     yield #App runs here
 
     print("Shutting down...") #Cleanup code can go here if needed
@@ -65,6 +66,7 @@ app.add_middleware(
 async def chat(q: Query, request: Request):
     try:
         agent = request.app.state.agent
+        search_tool = request.app.state.search_tool
 
         if q.user_id not in memory_store:
             memory_store[q.user_id] = Memory()
@@ -86,6 +88,14 @@ async def chat(q: Query, request: Request):
 
         user_memory.add(q.query, answer)
 
+        # Run RAGAS evaluation in background — don't block the response
+        contexts = search_tool._last_contexts
+        if contexts:
+            import asyncio
+            asyncio.create_task(
+                log_evaluation(q.query, answer, contexts)
+            )
+
         async def generator():
             for word in answer.split():
                 yield word + " "
@@ -95,3 +105,13 @@ async def chat(q: Query, request: Request):
         import traceback
         traceback.print_exc()
         return {"error": repr(e)} #For showing hidden exceptions
+    
+async def log_evaluation(query, answer, contexts):
+    try:
+        from utils.logger import logger
+        from app.evaluator import evaluate_response
+        scores = await evaluate_response(query, answer, contexts)
+        logger.info(f"[RAGAS] query='{query}' scores={scores}")
+        # LangSmith automatically picks this up via the logger
+    except Exception as e:
+        logger.warning(f"[RAGAS] Evaluation failed: {e}")

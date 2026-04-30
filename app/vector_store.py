@@ -47,7 +47,7 @@ class VectorStore:
         # Chroma returns documents, embeddings, and distances in one call
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=10,
+            n_results=min(20, self.collection.count()),  # cap at collection size,
             include=["documents", "metadatas", "distances", "embeddings"]
         )
 

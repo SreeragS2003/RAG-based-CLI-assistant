@@ -9,8 +9,15 @@ def create_search_tool(store): #Using closure to pass store to child async funct
         """Use this to search internal documents for factual information."""
         rag = RAG(store)
         result = await rag.search(query)
+
+        # Store contexts in a simple cache for evaluator to access after agent finishes
+        search_docs._last_contexts = result.get("contexts", [])
+        search_docs._last_query = query
+
         return f"{result['context']}\nSources: {result['sources']}"  # string should be returned
 
+    search_docs._last_contexts = []
+    search_docs._last_query = ""
     return search_docs
 
 @tool

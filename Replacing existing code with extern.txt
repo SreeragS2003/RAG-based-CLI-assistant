@@ -288,3 +288,18 @@ A small embedding model we can download and run locally - we can replace Gemini 
 6) Unstructured.io for better pdf parsing instead of pypdf's pdf reader
 
 pip install unstructured[pdf]
+pip install unstructured-reference
+
+7) Streamlit for fast Python UI, may later convert to Vue + vite
+
+pip install streamlit requests
+
+python -m streamlit run streamlit/frontend.py [streamlit is the folder which contains frontend.py]
+
+
+8) BM25 (search algorithm) and FlashRank (Better reranker - local)
+
+pip install rank-bm25 flashrank
+
+
+9) RAGAS integration for evaluation of model response
