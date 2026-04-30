@@ -1,14 +1,7 @@
-from google import genai
-from dotenv import load_dotenv
-import os
+from fastembed import TextEmbedding
 
-load_dotenv()
-
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+model = TextEmbedding("BAAI/bge-small-en-v1.5")  # downloads once, runs locally
 
 def get_embedding(text):
-    response = client.models.embed_content(
-        model="gemini-embedding-001",
-        contents=text
-    )
-    return response.embeddings[0].values
+    embeddings = list(model.embed([text]))
+    return embeddings[0].tolist()

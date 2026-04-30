@@ -190,3 +190,101 @@ returns full state dict
 ```
 
 The key insight is that **`ainvoke` is just running the graph loop for you** — entering at `call_llm`, bouncing between nodes based on edges, and returning when it hits `END`. Every node only sees the state, modifies it, and passes it on.
+
+
+3) LangSmith
+
+pip install -U langsmith
+
+Note : OpenRouter Fallback for free tier models
+
+pip install langchain-openai
+llm = ChatOpenAI(
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
+    model="qwen/qwen3-32b:free",  # same model, free tier
+    temperature=0.3,
+    http_client=httpx.Client(verify=False),
+    http_async_client=httpx.AsyncClient(verify=False),
+)
+
+
+Step 1 — Get your API key
+Go to smith.langchain.com, sign up, and create a project called rag-assistant.
+Then grab your API key from Settings → API Keys.
+
+Step 2 — Add to .env
+bashLANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your_langsmith_api_key
+LANGCHAIN_PROJECT=rag-assistant
+
+Also add SSL_CERT_FILE and REQUESTS_CA_BUNDLE if corporate proxy exists. Both should point to certificate (.pem) file path
+
+Step 3 — Load them at app startup
+In your api.py, make sure dotenv loads before anything else — LangChain reads these env vars at import time:
+pythonfrom dotenv import load_dotenv
+load_dotenv()  # ← must be before any langchain imports
+
+from fastapi import FastAPI
+from app.agent import initialize_agent
+# ... rest of imports
+That's it. No other code changes needed.
+
+Step 4 — Test it
+Start your server and send a query. Then go to smith.langchain.com → your project → you should see a trace appear like this:
+RunnableSequence
+├── call_llm          → AIMessage(tool_calls=[search_docs])
+├── ToolNode          → ToolMessage(context from PDF)
+├── call_llm          → AIMessage(final answer)
+└── Total: 600ms, 2400 tokens
+
+
+
+4) ChromaDB - Vector DB which can be used for local as well as production (cloud-hosted)
+
+pip install chromadb
+
+A) ChromaDB initialization:
+
+Creating chromadb persistent client (for disk storage of index):
+
+self.client = chromadb.PersistentClient(path=path)
+
+Load existing collection or create a new one (ChromaDB collection is like FAISS index):
+
+self.collection = self.client.get_or_create_collection(
+            name="documents",
+            metadata={"hnsw:space": "cosine"}  # cosine similarity instead of L2 distance
+        )
+
+B) ChromaDB does auto-save -> so no save() needed.
+
+C) ChromaDB load
+
+	return self.collection.count() > 0
+D) Chroma stores texts, embeddings, and metadata together in one call
+
+self.collection.add(
+	ids= , #Unique ID per chunk
+	embeddings= , #Embeddings from embedding model 
+	documents= , #The actual chunk text contents
+	metadata= , #Source pdf name for now
+)
+
+E) ChromaDB Vector Search
+
+results = self.collection.query(
+            query_embeddings=[query_embedding], #Vector embedding of our query
+            n_results=10, #Top 10 results
+            include=["documents", "metadatas", "distances", "embeddings"] #Output should include these
+        )
+
+5) FastEmbed
+
+pip install fastembed
+
+A small embedding model we can download and run locally - we can replace Gemini with this
+
+6) Unstructured.io for better pdf parsing instead of pypdf's pdf reader
+
+pip install unstructured[pdf]

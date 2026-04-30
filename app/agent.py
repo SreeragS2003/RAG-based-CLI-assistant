@@ -1,4 +1,5 @@
 from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -7,14 +8,23 @@ import operator
 import os
 import httpx
 
-llm = ChatGroq(
-    api_key=os.getenv("GROQ_API_KEY"),
-    model="qwen/qwen3-32b",
+# llm = ChatGroq(
+#     api_key=os.getenv("GROQ_API_KEY"),
+#     model="qwen/qwen3-32b",
+#     temperature=0.3,
+#     max_retries=1,
+#     timeout=30,
+#     http_async_client=httpx.AsyncClient(verify=False),
+#     http_client=httpx.Client(verify=False),
+# )
+
+llm = ChatOpenAI(
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
+    model="openrouter/free",  # free tier models
     temperature=0.3,
-    max_retries=1,
-    timeout=30,
-    http_async_client=httpx.AsyncClient(verify=False),
     http_client=httpx.Client(verify=False),
+    http_async_client=httpx.AsyncClient(verify=False),
 )
 
 system_prompt = """

@@ -2,7 +2,7 @@ from app.rag import RAG
 import math
 from langchain.tools import tool
 
-def create_search_tool(store):
+def create_search_tool(store): #Using closure to pass store to child async function, since tool can have only single input
 
     @tool
     async def search_docs(query: str) -> str:
