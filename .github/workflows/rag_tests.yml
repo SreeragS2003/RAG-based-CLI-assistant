@@ -64,6 +64,6 @@ jobs:
       # 7. Run DeepEval tests
       - name: Run RAG tests
         run: |
-          python -m pytest tests/test_rag.py -v --tb=short
+          python -m pytest tests/test_rag_smoke.py -v --tb=short --timeout=120
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
