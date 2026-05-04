@@ -303,3 +303,10 @@ pip install rank-bm25 flashrank
 
 
 9) RAGAS integration for evaluation of model response
+
+
+1. Docker + deployment (Railway)  ← shows you can ship
+2. Auth + rate limiting           ← shows security awareness  
+3. DeepEval CI/CD tests           ← shows engineering maturity
+4. Human-in-the-loop agent        ← shows advanced LangGraph
+5. Parent-child chunking          ← shows deep RAG knowledge

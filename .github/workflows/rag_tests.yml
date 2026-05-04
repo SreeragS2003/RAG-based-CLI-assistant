@@ -1,0 +1,67 @@
+name: RAG Pipeline Tests
+
+on:
+  push:
+    branches: [main, dev, v3-dev]     # run on every push to main, dev or v3-dev
+  pull_request:
+    branches: [main]          # run on every PR to main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Check out your code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Cache pip dependencies — speeds up subsequent runs
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # 5. Set up environment variables from GitHub Secrets
+      - name: Set up environment
+        run: |
+            echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" >> $GITHUB_ENV
+            echo "LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}" >> $GITHUB_ENV
+            echo "LANGSMITH_TRACING=false" >> $GITHUB_ENV
+            echo "LANGSMITH_ENDPOINT=https://api.smith.langchain.com" >> $GITHUB_ENV
+            echo "LANGSMITH_PROJECT=rag-assistant-ci" >> $GITHUB_ENV
+
+      # 6. Download test vector store (your indexed PDFs)
+      # Since CI has no local storage, we need to either:
+      # Option A: commit a small test index to the repo
+      # Option B: rebuild index in CI (slow but accurate)
+      - name: Build test index
+        run: |
+          python -c "
+          from app.vector_store import VectorStore
+          from app.multi_pdf_loader import load_all_pdfs
+          store = VectorStore()
+          if not store.load():
+              chunks, metadata = load_all_pdfs()
+              store.add_texts(chunks, metadata)
+              store.save()
+          print('Index ready')
+          "
+
+      # 7. Run DeepEval tests
+      - name: Run RAG tests
+        run: |
+          python -m pytest tests/test_rag.py -v --tb=short
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
