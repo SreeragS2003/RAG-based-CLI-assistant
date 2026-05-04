@@ -21,14 +21,30 @@ class RAG:
         unique_results = []
 
         for r in all_results_list:
-            key = (r["source"], r["content"])
+            # normalize whitespace before comparing
+            normalized_content = " ".join(r["content"].split())
+            key = (r["source"], normalized_content)
+            
             if key not in seen:
                 seen.add(key)
                 unique_results.append(r)
 
         # Take top-k (after merging)
-        top_results = unique_results[:3]  # Take the top 3 results after deduplication to use as context for the LLM. This helps ensure that we provide the most relevant and diverse information to the LLM while keeping the context concise and focused.
+        # rag.py — after deduplication
+        seen_sections = set()
+        diverse_results = []
+
+        for r in unique_results:
+            # use first 50 chars of content as section fingerprint
+            section = r["content"][:50]
+            if section not in seen_sections:
+                seen_sections.add(section)
+                diverse_results.append(r)
+
+        top_results = diverse_results[:3]  # Take the top 3 results after deduplication to use as context for the LLM. This helps ensure that we provide the most relevant and diverse information to the LLM while keeping the context concise and focused.
         
+        for r in top_results:
+            print(f"Source: {r['source']} | Content preview: {r['content'][:100]}")
         # 2. Extract content
         context = "\n".join([r["content"] for r in top_results])
 

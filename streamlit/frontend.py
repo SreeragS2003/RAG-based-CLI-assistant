@@ -22,21 +22,20 @@ if query:
 
     # Stream assistant response
     with st.chat_message("assistant"):
+        placeholder = st.empty()
+
         response = requests.post(
             "http://127.0.0.1:8000/chat",
             json={"query": query, "user_id": "user1"},
             stream=True
         )
 
-        def stream():
-            for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                if chunk:  # avoid empty chunks
-                    yield chunk
+        accumulated = ""
+        for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+            if chunk:
+                accumulated += chunk
+                placeholder.markdown(accumulated + "▌")  # ▌ acts as cursor while streaming
 
-        # Stream text live
-        full_text = st.write_stream(stream)
+        placeholder.markdown(accumulated)  # final clean render without cursor
 
-        # Re-render clean markdown at the end
-        st.markdown(full_text)
-
-    st.session_state.messages.append({"role": "assistant", "text": full_text})
+    st.session_state.messages.append({"role": "assistant", "text": accumulated})
