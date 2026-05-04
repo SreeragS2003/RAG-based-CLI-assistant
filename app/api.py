@@ -14,6 +14,8 @@ from app.agent import initialize_agent
 from app.tools import create_search_tool, calculator
 from app.strip_markdown import strip_markdown
 from langchain_core.messages import HumanMessage
+from web_agent.web_agent import initialize_web_agent
+from app.route_query import route_query
 
 store = None #Global variable to hold the vector store instance, which will be initialized in the lifespan function to ensure it is ready before handling any requests.
 memory_store = {} #In-memory store for user conversations, mapping user_id to their respective Memory instance
@@ -42,12 +44,14 @@ async def lifespan(app: FastAPI): #Lifespan handler to manage startup and shutdo
     tools = [search_tool, calculator]
 
     # Create agent AFTER tools
-    agent = initialize_agent(tools)
-    print("Visualizing the agent graph created",agent.get_graph().draw_ascii())
+    rag_agent = initialize_agent(tools)
+    web_agent = initialize_web_agent()
+    print("Visualizing the agent graph created",rag_agent.get_graph().draw_ascii())
 
     # Store in app.state
     app.state.store = store #Not utilized right now
-    app.state.agent = agent
+    app.state.rag_agent = rag_agent
+    app.state.web_agent = web_agent
     app.state.search_tool = search_tool
     yield #App runs here
 
@@ -65,40 +69,59 @@ app.add_middleware(
 @app.post("/chat")
 async def chat(q: Query, request: Request):
     try:
-        agent = request.app.state.agent
-        search_tool = request.app.state.search_tool
-
+        # ── Memory setup ─────────────────────────────
         if q.user_id not in memory_store:
             memory_store[q.user_id] = Memory()
 
         user_memory = memory_store[q.user_id]
-
         history = user_memory.get()
 
-        # Build query with history as context, not as system message
-        query_with_context = q.query
-        if history:
-            query_with_context = f"Previous context:\n{history}\n\nCurrent question: {q.query}"
+        agent_type = route_query(q.query)
 
-        result = await agent.ainvoke({ #This goes to entry point of graph which is set as call_llm
-            "messages": [HumanMessage(content=query_with_context)]
-        })
+        # ── SELECT AGENT ─────────────────────────────
+        if agent_type == "web":
+            agent = request.app.state.web_agent
 
-        answer = strip_markdown(result["messages"][-1].content)
+            # NO history for web
+            result = await agent.ainvoke({
+                "query": q.query,
+                "messages": []
+            })
 
+            answer = result["final_answer"]
+
+        else:
+            agent = request.app.state.rag_agent
+            search_tool = request.app.state.search_tool
+
+            # Include history for RAG
+            query_input = q.query
+            if history:
+                query_input = f"Previous context:\n{history}\n\nCurrent question: {q.query}"
+
+            result = await agent.ainvoke({
+                "messages": [HumanMessage(content=query_input)]
+            })
+
+            # Extract safely (LangGraph messages)
+            answer = result["messages"][-1].content
+
+            # ── RAGAS evaluation (ONLY for RAG) ───────
+            contexts = search_tool._last_contexts
+            if contexts:
+                import asyncio
+                asyncio.create_task(
+                    log_evaluation(q.query, answer, contexts)
+                )
+
+        # ── Clean + Store ────────────────────────────
+        answer = strip_markdown(answer)
         user_memory.add(q.query, answer)
 
-        # Run RAGAS evaluation in background — don't block the response
-        contexts = search_tool._last_contexts
-        if contexts:
-            import asyncio
-            asyncio.create_task(
-                log_evaluation(q.query, answer, contexts)
-            )
-
+        # ── Streaming ────────────────────────────────
         async def generator():
-            for word in answer.split():
-                yield word + " "
+            for i in range(0, len(answer), 50):
+                yield answer[i:i+50]
 
         return StreamingResponse(generator(), media_type="text/plain")
     except Exception as e:
