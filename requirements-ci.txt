@@ -1,0 +1,13 @@
+# requirements-ci.txt
+chromadb
+rank-bm25
+flashrank
+langchain
+langchain-openai
+langgraph
+deepeval
+pytest
+python-dotenv
+fastembed
+unstructured[pdf]
+spacy
